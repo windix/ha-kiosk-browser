@@ -2,6 +2,7 @@ package cn.local.tabletkiosk;
 
 import android.content.Context;
 import android.graphics.Rect;
+import android.os.Build;
 import android.os.SystemClock;
 import android.view.InputDevice;
 import android.view.MotionEvent;
@@ -112,7 +113,7 @@ public final class EdgeSwipeLayout extends FrameLayout {
         int span = Math.min(exclusionHeightPx, height);
         int start = (height - span) / 2;
         exclusionRect.set(0, start, edgeWidthPx, start + span);
-        setSystemGestureExclusionRects(exclusionRects);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setSystemGestureExclusionRects(exclusionRects);
     }
 
     /** 把边缘轻点按手指输入重新发给网页。 */

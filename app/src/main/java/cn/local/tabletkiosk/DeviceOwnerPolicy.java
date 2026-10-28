@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.os.Build;
 import android.util.Log;
 import java.util.List;
 
@@ -38,7 +39,9 @@ public final class DeviceOwnerPolicy {
         try {
             // 允许本应用进入锁定模式，并保留电源键长按菜单，方便手动关机
             dpm.setLockTaskPackages(admin, new String[]{pkg});
-            dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS);
+            }
 
             if (pinHome) {
                 // 固定为桌面，开机和按 Home 都回到本应用
