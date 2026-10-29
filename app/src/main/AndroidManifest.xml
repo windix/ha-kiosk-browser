@@ -63,6 +63,15 @@
             </intent-filter>
         </activity>
 
+        <!-- 独立进程：结束主进程后重新打开主界面 -->
+        <activity
+            android:name=".RestartActivity"
+            android:process=":restart"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".KioskService"
             android:exported="false"

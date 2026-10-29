@@ -6,6 +6,7 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.util.Size;
 import androidx.activity.ComponentActivity;
+import androidx.camera.core.CameraInfoUnavailableException;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -23,14 +24,19 @@ import java.util.concurrent.Executors;
 
 /** 前置摄像头画面变化检测：只在本机分析低分辨率亮度，画面不保存、不上传。 */
 final class CameraMotion {
-    /** 检测到画面变化时在主线程回调。 */
+    /** 在主线程回调。 */
     interface Listener {
+        /** 检测到画面变化。 */
         void onMotion();
+
+        /** 前置摄像头在本进程里再也找不回来，需要重启应用。 */
+        void onCameraLost();
     }
 
     private static final int GRID_COLS = 32;
     private static final int GRID_ROWS = 24;
     private static final long FRAME_INTERVAL_MS = 250;
+    private static final long CHECK_MS = 5_000;
 
     private final ComponentActivity activity;
     private final Listener listener;
@@ -45,10 +51,16 @@ final class CameraMotion {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService analyzer = Executors.newSingleThreadExecutor();
     private final MotionDetector detector = new MotionDetector(0);
+    private final CameraWatchdog watchdog = new CameraWatchdog();
+    private final Runnable check = this::checkStalled;
     private ProcessCameraProvider provider;
     private ImageAnalysis analysis;
     private boolean wanted;
+    /** 本进程成功绑定过前置摄像头，之后找不到才算丢失，避免没有前置摄像头的设备反复重启。 */
+    private boolean everBound;
     private long lastFrame;
+    /** 最近一帧到达时间，分析线程写、主线程读。 */
+    private volatile long lastImage;
     private byte[] buffer = new byte[0];
 
     /** 摄像头绑定独立生命周期，不随主界面息屏而关闭。 */
@@ -67,6 +79,8 @@ final class CameraMotion {
         }
         if (wanted) return;
         wanted = true;
+        watchdog.reset(SystemClock.elapsedRealtime());
+        main.postDelayed(check, CHECK_MS);
         ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(activity);
         future.addListener(() -> {
             try {
@@ -81,6 +95,7 @@ final class CameraMotion {
     /** 关闭摄像头。 */
     void stop() {
         wanted = false;
+        main.removeCallbacks(check);
         if (provider != null && analysis != null) provider.unbind(analysis);
         analysis = null;
         detector.reset();
@@ -114,6 +129,7 @@ final class CameraMotion {
             next.setAnalyzer(analyzer, this::analyze);
             provider.bindToLifecycle(cameraOwner, CameraSelector.DEFAULT_FRONT_CAMERA, next);
             analysis = next;
+            everBound = true;
             detector.reset();
             Log.i(KioskApp.LOG, "Front camera motion detection started");
         } catch (Exception e) {
@@ -121,10 +137,41 @@ final class CameraMotion {
         }
     }
 
+    /**
+     * 主线程定时检查，没有新画面时设法恢复。摄像头服务崩溃重启后，本进程的系统摄像头接口
+     * 一直报告没有摄像头，重绑和重新初始化 CameraX 都找不回来，只能重启应用。
+     */
+    private void checkStalled() {
+        if (!wanted) return;
+        if (watchdog.shouldRebind(SystemClock.elapsedRealtime(), lastImage)) {
+            if (everBound && !hasFrontCamera()) {
+                // 系统不让重启（例如新版本 Android 在后台时）就按退避间隔再试
+                Log.w(KioskApp.LOG, "Front camera lost after camera service restart, restarting app");
+                listener.onCameraLost();
+            } else {
+                Log.w(KioskApp.LOG, "No camera frames, rebinding front camera");
+                if (provider != null && analysis != null) provider.unbind(analysis);
+                analysis = null;
+                bind();
+            }
+        }
+        main.postDelayed(check, CHECK_MS);
+    }
+
+    /** CameraX 现在还能不能看到前置摄像头。 */
+    private boolean hasFrontCamera() {
+        try {
+            return provider != null && provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA);
+        } catch (CameraInfoUnavailableException e) {
+            return false;
+        }
+    }
+
     /** 分析线程：限频后把 Y 平面缩成亮度网格，检测到变化时回到主线程通知。 */
     private void analyze(ImageProxy image) {
         try {
             long now = SystemClock.elapsedRealtime();
+            lastImage = now;
             if (now - lastFrame < FRAME_INTERVAL_MS) return;
             lastFrame = now;
             ImageProxy.PlaneProxy plane = image.getPlanes()[0];
