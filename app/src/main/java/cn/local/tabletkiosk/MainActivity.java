@@ -813,6 +813,13 @@ public final class MainActivity extends ComponentActivity
         syncScreenSaver();
     }
 
+    /** 摄像头服务崩溃后本进程找不回前置摄像头，重启应用恢复人体检测。 */
+    @Override
+    public void onCameraLost() {
+        CookieManager.getInstance().flush();
+        RestartActivity.restart(this);
+    }
+
     /** 清掉网页缓存和 Service Worker 后重新取当前页，保留 Cookie 和 localStorage。 */
     @Override
     public void reload() {
