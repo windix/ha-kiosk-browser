@@ -390,9 +390,11 @@ public final class MainActivity extends ComponentActivity
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setShowWhenLocked(true);
         setTurnScreenOn(true);
-        WindowManager.LayoutParams lp = getWindow().getAttributes();
-        lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        getWindow().setAttributes(lp);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
     }
 
@@ -1499,7 +1501,7 @@ public final class MainActivity extends ComponentActivity
         byte[] buffer = new byte[4096];
         int count;
         while ((count = input.read(buffer)) >= 0) out.write(buffer, 0, count);
-        return out.toString(StandardCharsets.UTF_8);
+        return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
     /** 在主线程应用导入结果，并刷新已经打开的设置。 */

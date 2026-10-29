@@ -8,6 +8,8 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.TransportInfo;
 import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.util.Log;
 import java.net.Inet4Address;
 
@@ -50,9 +52,18 @@ final class NetUtil {
             if (network == null) return unknown;
             NetworkCapabilities caps = cm.getNetworkCapabilities(network);
             if (caps == null) return unknown;
-            TransportInfo info = caps.getTransportInfo();
-            if (!(info instanceof WifiInfo)) return unknown;
-            WifiInfo wifi = (WifiInfo) info;
+            WifiInfo wifi;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                TransportInfo info = caps.getTransportInfo();
+                if (!(info instanceof WifiInfo)) return unknown;
+                wifi = (WifiInfo) info;
+            } else {
+                // Android 9 及更早没有 getTransportInfo，改用已弃用的 WifiManager 接口
+                if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return unknown;
+                WifiManager wm = context.getApplicationContext().getSystemService(WifiManager.class);
+                wifi = wm == null ? null : wm.getConnectionInfo();
+                if (wifi == null) return unknown;
+            }
             String ssid = wifi.getSSID();
             if (ssid == null || "<unknown ssid>".equals(ssid)) ssid = "";
             else if (ssid.length() >= 2 && ssid.startsWith("\"") && ssid.endsWith("\"")) {

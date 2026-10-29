@@ -19,6 +19,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.text.InputType;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -1081,9 +1082,11 @@ final class SettingsPanel extends FrameLayout {
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
-            WindowManager.LayoutParams attrs = window.getAttributes();
-            attrs.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            window.setAttributes(attrs);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                WindowManager.LayoutParams attrs = window.getAttributes();
+                attrs.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                window.setAttributes(attrs);
+            }
             WindowCompat.setDecorFitsSystemWindows(window, false);
         }
         dialog.setOnShowListener(d -> hideDialogBars(dialog));
@@ -2554,6 +2557,11 @@ final class SettingsPanel extends FrameLayout {
             int h = view.getHeight();
             if (w <= 0 || h <= 0) {
                 outline.setEmpty();
+                return;
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                // Android 10 及更早没有 Outline.setPath，直接用向左伸出的圆角矩形
+                outline.setRoundRect(-radius, 0, w, h, radius);
                 return;
             }
             Path path = new Path();
